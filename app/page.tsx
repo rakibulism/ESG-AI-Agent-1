@@ -1,15 +1,13 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Play, Pause, RotateCcw, Download, Upload } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Upload } from "lucide-react";
 import { toast } from "sonner";
 
 const STAGES = ["Collecting data", "Cleaning data", "Mapping to framework", "Generating report", "Validating"] as const;
 type Stage = typeof STAGES[number];
 
 const COMPANY = "Verdant Manufacturing Inc.";
-const SESSION_ID = "ESG-2025-0611-7K9P";
 
 interface ActivityLog {
   id: string;
@@ -38,19 +36,20 @@ interface Suggestion {
   text: string;
 }
 
-interface Phase {
-  name: string;
-  activities: any[];
-  progress: string;
+interface DemoStep {
+  phase: string;
+  delay: number;
+  message: string;
+  status: ActivityLog["status"];
+  detail?: string;
+  meta?: string;
+  reasoning?: string;
+  addGap?: DataGap;
+  addQuestion?: AIQuestion;
+  advance?: Stage;
 }
 
-const PHASES: Phase[] = [
-  { name: "Data Collection", progress: "3/4", activities: [] },
-  { name: "Data Processing", progress: "2/3", activities: [] },
-  { name: "Report Building", progress: "1/2", activities: [] },
-];
-
-const DEMO_SCRIPT = [
+const DEMO_SCRIPT: DemoStep[] = [
   { phase: "Data Collection", delay: 420, message: "Connected to QuickBooks", status: "done" as const },
   { phase: "Data Collection", delay: 820, message: "Reading your utility bill for March", status: "running" as const },
   { phase: "Data Collection", delay: 1350, message: "Found 482,190 kWh of electricity in the March bill", status: "done" as const, meta: "Source: PDF", reasoning: "Detected total: 482,190 kWh" },
@@ -67,7 +66,6 @@ export default function ESGSenseLive() {
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [currentStage, setCurrentStage] = useState<Stage>("Collecting data");
   const [isPlaying, setIsPlaying] = useState(true);
-  const [elapsed, setElapsed] = useState(0);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set(["Data Collection"]));
   const [gaps, setGaps] = useState<DataGap[]>([
@@ -81,25 +79,31 @@ export default function ESGSenseLive() {
   const [scriptIndex, setScriptIndex] = useState(0);
   const [narrativeSubtitle, setNarrativeSubtitle] = useState("We’re organizing your sustainability data into a structured report.");
   const [isWriting, setIsWriting] = useState(false);
-  const [selectedSource, setSelectedSource] = useState<string | null>(null);
   const [dragOverGap, setDragOverGap] = useState<string | null>(null);
   const [pendingUploadGapId, setPendingUploadGapId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const elapsedIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const logCountRef = useRef(0);
+  const scriptIndexRef = useRef(0);
+  const isPlayingRef = useRef(true);
+  const runNextRef = useRef<(() => void) | null>(null);
 
-  const pushLog = (log: Omit<ActivityLog, "id" | "timestamp">) => {
+  const pushLog = useCallback((log: Omit<ActivityLog, "id" | "timestamp">) => {
     const ts = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    const newLog: ActivityLog = { id: "log-" + Date.now(), timestamp: ts, ...log };
+    logCountRef.current += 1;
+    const newLog: ActivityLog = { id: `log-${logCountRef.current}`, timestamp: ts, ...log };
     setActivities(prev => [...prev, newLog]);
-    return newLog.id;
-  };
+  }, []);
 
   const toggleLog = (id: string) => {
     setExpandedLogs(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
@@ -107,7 +111,11 @@ export default function ESGSenseLive() {
   const togglePhase = (name: string) => {
     setExpandedPhases(prev => {
       const next = new Set(prev);
-      next.has(name) ? next.delete(name) : next.add(name);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
       return next;
     });
   };
@@ -184,30 +192,39 @@ export default function ESGSenseLive() {
     setDragOverGap(null);
   };
 
-  const runNext = () => {
-    if (scriptIndex >= DEMO_SCRIPT.length) {
+  const runNext = useCallback(() => {
+    const idx = scriptIndexRef.current;
+    if (idx >= DEMO_SCRIPT.length) {
+      isPlayingRef.current = false;
       setIsPlaying(false);
       return;
     }
-    const step = DEMO_SCRIPT[scriptIndex];
-    pushLog({ message: step.message, status: step.status, detail: (step as any).detail });
+    const step = DEMO_SCRIPT[idx];
+    pushLog({ message: step.message, status: step.status, detail: step.detail, meta: step.meta, reasoning: step.reasoning });
 
-    if ((step as any).addGap) setGaps(prev => [...prev, (step as any).addGap]);
-    if ((step as any).addQuestion) setQuestions(prev => [...prev, (step as any).addQuestion]);
-    if (step.advance) setCurrentStage(step.advance as Stage);
+    const gap = step.addGap;
+    if (gap) setGaps(prev => (prev.some(g => g.id === gap.id) ? prev : [...prev, gap]));
+    const question = step.addQuestion;
+    if (question) setQuestions(prev => (prev.some(q => q.id === question.id) ? prev : [...prev, question]));
+    if (step.advance) setCurrentStage(step.advance);
 
-    const next = scriptIndex + 1;
-    setScriptIndex(next);
+    scriptIndexRef.current = idx + 1;
+    setScriptIndex(idx + 1);
 
-    if (isPlaying) {
-      timeoutRef.current = setTimeout(runNext, step.delay);
+    if (isPlayingRef.current) {
+      timeoutRef.current = setTimeout(() => runNextRef.current?.(), step.delay);
     }
-  };
+  }, [pushLog]);
+
+  useEffect(() => {
+    runNextRef.current = runNext;
+  }, [runNext]);
 
   const togglePlay = () => {
     const next = !isPlaying;
+    isPlayingRef.current = next;
     setIsPlaying(next);
-    if (next && scriptIndex < DEMO_SCRIPT.length) {
+    if (next && scriptIndexRef.current < DEMO_SCRIPT.length) {
       timeoutRef.current = setTimeout(runNext, 300);
     } else if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -215,25 +232,22 @@ export default function ESGSenseLive() {
   };
 
   useEffect(() => {
-    elapsedIntervalRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
-    setTimeout(() => {
+    const startTimeout = setTimeout(() => {
       pushLog({ message: "ESG-Sense session started", status: "done" });
       timeoutRef.current = setTimeout(runNext, 400);
     }, 80);
     return () => {
+      clearTimeout(startTimeout);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      if (elapsedIntervalRef.current) clearInterval(elapsedIntervalRef.current);
     };
-  }, []);
+  }, [pushLog, runNext]);
 
   const restartSession = () => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    if (elapsedIntervalRef.current) clearInterval(elapsedIntervalRef.current);
 
     setActivities([]);
     setCurrentStage("Collecting data");
     setIsPlaying(true);
-    setElapsed(0);
     setExpandedLogs(new Set());
     setExpandedPhases(new Set(["Data Collection"]));
     setGaps([{ id: "gap-water", label: "Water usage for Feb–Apr", severity: "high", hint: "Meter WM-03 seems to have been offline" }]);
@@ -243,9 +257,10 @@ export default function ESGSenseLive() {
     setScriptIndex(0);
     setNarrativeSubtitle("We’re organizing your sustainability data into a structured report.");
     setIsWriting(false);
-    setSelectedSource(null);
+    logCountRef.current = 0;
+    scriptIndexRef.current = 0;
+    isPlayingRef.current = true;
 
-    elapsedIntervalRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
     setTimeout(() => {
       pushLog({ message: "ESG-Sense session started", status: "done" });
       timeoutRef.current = setTimeout(runNext, 400);
@@ -304,7 +319,7 @@ export default function ESGSenseLive() {
                 <span>{phase.name}</span>
                 <span className="phase-progress">{phase.progress}</span>
               </div>
-              {expandedPhases.has(phase.name) && phase.activities.map((log: any) => (
+              {expandedPhases.has(phase.name) && phase.activities.map((log) => (
                 <div key={log.id} onClick={() => toggleLog(log.id)} className={`activity-item ${log.status}`}>
                   <div className={`activity-dot ${log.status}`} />
                   <div className="activity-main">
@@ -343,7 +358,7 @@ export default function ESGSenseLive() {
             <div className="section-card">
               <h3>Data Sources Used</h3>
               {["Electricity → March Utility Bill (PDF)", "Financial Data → QuickBooks", "Fleet Data → Manual Input"].map((src, i) => (
-                <div key={i} className="data-source" onClick={() => setSelectedSource(src)}>
+                <div key={i} className="data-source" onClick={() => toast.info(`Source trace: ${src}`)}>
                   {src} <span className="text-xs text-[#4B5563]">view</span>
                 </div>
               ))}
@@ -413,7 +428,7 @@ export default function ESGSenseLive() {
           <div className="right-section">
             <h4>Suggestions</h4>
             {suggestions.length > 0 ? suggestions.map(s => (
-              <div key={s.id} className="suggestion-card soft-card">{s.text}</div>
+              <div key={s.id} className="suggestion-card soft-card cursor-pointer" onClick={() => handleSuggestion(s.id)}>{s.text}</div>
             )) : <div className="text-xs text-[#4B5563]">No suggestions.</div>}
           </div>
 
