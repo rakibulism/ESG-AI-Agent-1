@@ -1,26 +1,135 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@theme inline {
+  --color-background: #09090b;
+  --color-foreground: #e4e4e7;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
+/* Calm, trust-oriented dark theme for AI co-pilot */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans);
+}
+
+/* Thin, calm scrollbars for panels (audit + log friendly) */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #18181b;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+/* Activity log rows */
+.log-row {
+  @apply px-2.5 py-1.5 rounded-md border border-transparent transition-all cursor-pointer;
+}
+.log-row:hover {
+  @apply border-zinc-800 bg-zinc-900/60;
+}
+.log-row.expanded {
+  @apply border-zinc-700 bg-zinc-900;
+}
+
+/* Status badges */
+.status-badge {
+  @apply inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium tracking-wide;
+}
+.status-running {
+  @apply bg-sky-500/10 text-sky-400 border border-sky-500/30;
+}
+.status-done {
+  @apply bg-emerald-500/10 text-emerald-400 border border-emerald-500/30;
+}
+.status-issue {
+  @apply bg-amber-500/10 text-amber-400 border border-amber-500/30;
+}
+.status-user {
+  @apply bg-violet-500/10 text-violet-400 border border-violet-500/30;
+}
+
+/* Stage stepper */
+.stage-pill {
+  @apply px-2.5 py-0.5 text-[11px] rounded-full border transition-all;
+}
+.stage-pill.active {
+  @apply bg-emerald-500/10 text-emerald-400 border-emerald-500/40;
+}
+.stage-pill.complete {
+  @apply text-emerald-400/70 border-emerald-500/20;
+}
+.stage-pill.pending {
+  @apply text-zinc-500 border-zinc-800;
+}
+
+/* Canvas document feel */
+.canvas-paper {
+  @apply bg-zinc-950 border border-zinc-800 rounded-xl p-6 shadow-inner overflow-hidden;
+}
+.canvas-section {
+  @apply mb-5 last:mb-0;
+}
+.canvas-h2 {
+  @apply text-lg font-semibold tracking-tight text-zinc-100 mb-2;
+}
+.canvas-p {
+  @apply text-[13px] leading-relaxed text-zinc-300;
+}
+.extracted-field {
+  @apply px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono transition-colors;
+}
+
+/* Right panel cards */
+.control-card {
+  @apply bg-zinc-900 border border-zinc-800 rounded-lg p-3 mb-3;
+}
+.control-card h4 {
+  @apply text-[11px] font-medium tracking-[0.5px] uppercase text-zinc-400 mb-2;
+}
+
+/* Command bar */
+.command-input {
+  @apply flex-1 bg-zinc-900 border border-zinc-800 focus:border-zinc-700 text-sm px-3 py-2 rounded-lg outline-none placeholder:text-zinc-500 font-mono;
+}
+
+/* Subtle live indicators */
+.pulse-dot {
+  @apply w-1.5 h-1.5 rounded-full bg-sky-400;
+  animation: pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Table styles inside canvas */
+.data-table {
+  @apply w-full text-xs border-collapse;
+}
+.data-table th {
+  @apply text-left font-normal text-zinc-500 border-b border-zinc-800 pb-1.5;
+}
+.data-table td {
+  @apply py-1.5 pr-3 text-zinc-300 border-b border-zinc-900;
+}
+.data-table .filling {
+  @apply animate-pulse text-sky-400/70;
+}
+
+/* Expandable detail */
+.detail-block {
+  @apply mt-1.5 ml-8 text-[12px] text-zinc-400 border-l border-zinc-700 pl-3 space-y-1;
 }
